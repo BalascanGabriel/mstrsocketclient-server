@@ -3,24 +3,23 @@ package server;
 import java.io.*;
 import java.net.*;
 import java.util.*;
+import javax.swing.SwingUtilities;
 
 // Server Class
 public class ReservationServer {
-    // List to store all reservations (shared resource)
-    private static List<Reservation> reservations = ReservationStorage.loadReservations(); // Load saved reservations
+    private static final int PORT = 12345;
+    private static List<Reservation> reservations = ReservationStorage.loadReservations();
+    private static List<ClientHandler> activeClients = new ArrayList<>();
+    private static int nextClientId = 1;
 
     public static void main(String[] args) {
-        int port = 12345; // Port number for the server
-        try (ServerSocket serverSocket = new ServerSocket(port)) {
-            System.out.println("Server started on port " + port);
+        try (ServerSocket serverSocket = new ServerSocket(PORT)) {
+            System.out.println("Server started on port " + PORT);
 
             while (true) {
-                // Accept a new client connection
                 Socket clientSocket = serverSocket.accept();
-                System.out.println("New client connected: " + clientSocket.getInetAddress());
-                
-                // Start a new thread for each client
-                new ClientHandler(clientSocket).start();
+                ClientHandler handler = new ClientHandler(clientSocket);
+                handler.start();
             }
         } catch (IOException e) {
             System.err.println("Server error: " + e.getMessage());
@@ -29,72 +28,83 @@ public class ReservationServer {
 
     // ClientHandler class to manage each client connection
     static class ClientHandler extends Thread {
-        private Socket socket;
+        private final Socket socket;
+        private final int clientId;
+        private PrintWriter writer;
 
         public ClientHandler(Socket socket) {
             this.socket = socket;
+            synchronized(ReservationServer.class) {
+                this.clientId = nextClientId++;
+                System.out.println("New client connected with ID: " + clientId);
+            }
         }
 
         @Override
         public void run() {
-            try (
-                InputStream input = socket.getInputStream();
-                BufferedReader reader = new BufferedReader(new InputStreamReader(input));
-                OutputStream output = socket.getOutputStream();
-                PrintWriter writer = new PrintWriter(output, true)
-            ) {
-                writer.println("Welcome to the Reservation System!");
-                writer.println("Choose an action: [1] Add reservation, [2] View reservations, [3] Exit");
+            try {
+                writer = new PrintWriter(socket.getOutputStream(), true);
+                BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
-                String action = reader.readLine();
+                // Trimite doar ID-ul clientului
+                writer.println("CLIENT_ID:" + clientId);
 
-                switch (action) {
-                    case "1": // Add reservation
-                        writer.println("What is your name?");
-                        String name = reader.readLine();
-                        writer.println("How many people?");
-                        int numberOfPeople = Integer.parseInt(reader.readLine());
-                        writer.println("At what time?");
-                        String time = reader.readLine();
-
-                        Reservation reservation = new Reservation(name, numberOfPeople, time);
-                        synchronized (reservations) {
-                            reservations.add(reservation);
-                        }
-                        ReservationStorage.saveReservations(reservations); // Save to file
-                        writer.println("Reservation added: " + reservation);
+                String input;
+                while ((input = reader.readLine()) != null) {
+                    if ("1".equals(input)) {
+                        handleReservation(reader, writer);
+                    } else if ("2".equals(input)) {
+                        showReservations(writer);
+                    } else if ("3".equals(input)) {
                         break;
-
-                    case "2": // View reservations
-                        synchronized (reservations) {
-                            if (reservations.isEmpty()) {
-                                writer.println("No reservations available.");
-                            } else {
-                                writer.println("Current reservations:");
-                                for (Reservation r : reservations) {
-                                    writer.println(r.toString());
-                                }
-                            }
-                        }
-                        break;
-
-                    case "3": // Exit
-                        writer.println("Goodbye!");
-                        break;
-
-                    default:
-                        writer.println("Invalid option.");
-                        break;
+                    }
                 }
             } catch (IOException e) {
-                System.err.println("Error handling client: " + e.getMessage());
+                System.err.println("Error handling client " + clientId + ": " + e.getMessage());
             } finally {
                 try {
                     socket.close();
-                    System.out.println("Client disconnected: " + socket.getInetAddress());
                 } catch (IOException e) {
-                    System.err.println("Error closing socket: " + e.getMessage());
+                    System.err.println("Error closing socket for client " + clientId);
                 }
+            }
+        }
+
+        private void handleReservation(BufferedReader reader, PrintWriter writer) throws IOException {
+            String name = reader.readLine();
+            String dayOfWeek = reader.readLine();
+            String time = reader.readLine();
+            int numberOfPeople = Integer.parseInt(reader.readLine());
+
+            synchronized (reservations) {
+                // Verificăm explicit dacă există o rezervare la aceeași oră și zi
+                for (Reservation r : reservations) {
+                    if (r.getDayOfWeek().equalsIgnoreCase(dayOfWeek) && r.getTime().equals(time)) {
+                        System.out.println("Rezervare duplicată detectată: " + dayOfWeek + " la " + time);
+                        writer.println("RESERVATION_FAILED");
+                        writer.flush(); // Ne asigurăm că mesajul ajunge la client
+                        return;
+                    }
+                }
+
+                // Dacă am ajuns aici, înseamnă că putem face rezervarea
+                Reservation reservation = new Reservation("Client " + clientId + " - " + name, 
+                                                       numberOfPeople, time, dayOfWeek);
+                reservations.add(reservation);
+                ReservationStorage.saveReservations(reservations);
+                
+                writer.println("RESERVATION_SUCCESS");
+                writer.flush();
+            }
+        }
+
+        private void showReservations(PrintWriter writer) {
+            synchronized (reservations) {
+                writer.println("RESERVATIONS_START");
+                for (Reservation r : reservations) {
+                    writer.println(r.toString());
+                }
+                writer.println("RESERVATIONS_END");
             }
         }
     }

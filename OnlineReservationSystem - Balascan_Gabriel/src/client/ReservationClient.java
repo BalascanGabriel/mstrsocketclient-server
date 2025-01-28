@@ -22,21 +22,26 @@ public class ReservationClient {
 
             String serverMessage;
             while ((serverMessage = reader.readLine()) != null) {
-                System.out.println("Server: " + serverMessage);
+                // Verifică dacă este un mesaj broadcast
+                if (serverMessage.startsWith("BROADCAST: ")) {
+                    System.out.println("\n" + serverMessage);
+                    System.out.print("> "); // Reafișează promptul
+                } else {
+                    System.out.println("Server: " + serverMessage);
 
-                // If the server prompts for an action or input, allow the user to respond
-                if (serverMessage.contains("Choose an action:") 
-                        || serverMessage.contains("What is your name?")
-                        || serverMessage.contains("How many people?")
-                        || serverMessage.contains("At what time?")) {
-                    System.out.print("> "); // Prompt the user
-                    String userInput = scanner.nextLine();
-                    writer.println(userInput); // Send the input to the server
+                    if (serverMessage.contains("Choose an action:") 
+                            || serverMessage.contains("What is your name?")
+                            || serverMessage.contains("How many people?")
+                            || serverMessage.contains("At what time?")
+                            || serverMessage.contains("Which day of the week?")) {
+                        System.out.print("> ");
+                        String userInput = scanner.nextLine();
+                        writer.println(userInput);
 
-                    // If the user chooses to exit, break the loop
-                    if (userInput.equalsIgnoreCase("3") || userInput.equalsIgnoreCase("exit")) {
-                        System.out.println("Closing connection...");
-                        break;
+                        if (userInput.equalsIgnoreCase("3") || userInput.equalsIgnoreCase("exit")) {
+                            System.out.println("Closing connection...");
+                            break;
+                        }
                     }
                 }
             }
