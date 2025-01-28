@@ -1,6 +1,9 @@
 @echo off
+echo Stergere director bin existent...
+rmdir /s /q bin 2>nul
+
 echo Creare director pentru clase compilate...
-if not exist "bin" mkdir bin
+mkdir bin
 
 echo Compilare...
 javac -d bin src/server/*.java src/client/*.java

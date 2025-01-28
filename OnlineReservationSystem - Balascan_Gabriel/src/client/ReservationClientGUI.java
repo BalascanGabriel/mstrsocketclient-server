@@ -22,6 +22,8 @@ public class ReservationClientGUI extends JFrame {
     private CardLayout cardLayout;
     private JTable reservationsTable;
     private DefaultTableModel tableModel;
+    private JLabel activeClientsLabel;
+    private JLabel clientLabel;
 
     public ReservationClientGUI() {
         super("Restaurant Reservation System");
@@ -31,7 +33,7 @@ public class ReservationClientGUI extends JFrame {
 
     private void setupGUI() {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(1024, 768); // Fereastră mai mare
+        setSize(850, 650); // Fereastră mai mare
         setLocationRelativeTo(null);
 
         // Folosim CardLayout pentru a gestiona diferite panouri
@@ -138,9 +140,19 @@ public class ReservationClientGUI extends JFrame {
         // Adaugă status bar
         JPanel statusBar = new JPanel(new BorderLayout());
         statusBar.setBorder(BorderFactory.createEtchedBorder());
-        JLabel statusLabel = new JLabel("Client " + clientId + " - Connected to server");
-        statusLabel.setFont(new Font("Arial", Font.BOLD, 12));
-        statusBar.add(statusLabel, BorderLayout.WEST);
+        
+        // Panel pentru partea stângă a status bar-ului
+        JPanel leftStatusPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        clientLabel = new JLabel("Client ID: " + clientId);
+        clientLabel.setFont(new Font("Arial", Font.BOLD, 12));
+        activeClientsLabel = new JLabel("Clienți conectați: 0");
+        activeClientsLabel.setFont(new Font("Arial", Font.BOLD, 12));
+        
+        leftStatusPanel.add(clientLabel);
+        leftStatusPanel.add(new JSeparator(JSeparator.VERTICAL));
+        leftStatusPanel.add(activeClientsLabel);
+        
+        statusBar.add(leftStatusPanel, BorderLayout.WEST);
         add(statusBar, BorderLayout.SOUTH);
     }
 
@@ -210,17 +222,33 @@ public class ReservationClientGUI extends JFrame {
     }
 
     private void handleServerMessage(String message) {
+        System.out.println("Received message: " + message); // Pentru debug
+        
         if (message.startsWith("CLIENT_ID:")) {
             clientId = Integer.parseInt(message.substring(10));
-            updateTitle();
+            SwingUtilities.invokeLater(() -> {
+                setTitle("Restaurant Reservation System - Client " + clientId);
+                clientLabel.setText("Client ID: " + clientId);
+            });
+        } 
+        else if (message.startsWith("ACTIVE_CLIENTS:")) {
+            try {
+                int count = Integer.parseInt(message.substring(15));
+                System.out.println("Updating active clients count to: " + count); // Pentru debug
+                SwingUtilities.invokeLater(() -> {
+                    activeClientsLabel.setText("Clienti conectati: " + count);
+                });
+            } catch (NumberFormatException e) {
+                System.err.println("Error parsing active clients count: " + message);
+            }
         } else if (message.equals("RESERVATION_SUCCESS")) {
             SwingUtilities.invokeLater(() -> {
                 JOptionPane.showMessageDialog(this,
-                    "Rezervarea a fost efectuată cu succes!\n" +
-                    "Vă așteptăm cu drag!",
-                    "Rezervare Confirmată",
+                    "Rezervarea a fost efectuata cu succes!\n" +
+                    "Va asteptam cu drag!",
+                    "Rezervare Confirmata",
                     JOptionPane.INFORMATION_MESSAGE);
-                appendMessage("✓ Rezervare confirmată");
+                appendMessage("✓ Rezervare confirmata");
                 clearFields();
                 viewReservations();
             });
@@ -230,8 +258,8 @@ public class ReservationClientGUI extends JFrame {
                 String day = dayComboBox.getSelectedItem().toString();
                 
                 String errorMsg = String.format(
-                    "Ne pare rău, dar ora %s din ziua de %s este deja rezervată.\n" +
-                    "Vă rugăm să alegeți alt interval orar.", 
+                    "Ne pare rau, dar ora %s din ziua de %s este deja rezervata.\n" +
+                    "Va rugam sa alegeti alt interval orar.", 
                     time, day);
                 
                 JOptionPane.showMessageDialog(this,
@@ -246,18 +274,10 @@ public class ReservationClientGUI extends JFrame {
         }
     }
 
-    private void updateTitle() {
-        SwingUtilities.invokeLater(() -> {
-            setTitle("Restaurant Reservation System - Client " + clientId);
-            ((JLabel)((JPanel)getContentPane().getComponent(1)).getComponent(0))
-                .setText("Client " + clientId + " - Connected to server");
-        });
-    }
-
     private void makeReservation() {
         if (nameField.getText().trim().isEmpty()) {
             JOptionPane.showMessageDialog(this,
-                "Vă rugăm să introduceți numele",
+                "Va rugam sa introduceti numele",
                 "Eroare",
                 JOptionPane.WARNING_MESSAGE);
             return;
