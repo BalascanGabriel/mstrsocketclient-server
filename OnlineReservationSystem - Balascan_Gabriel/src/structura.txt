@@ -1,0 +1,14 @@
+src/
+│
+├── client/
+│   ├── ReservationClient.java      // Cod pentru clienți
+│   ├── ClientGUI.java              // Interfața grafică pentru client
+│   └── Reservation.java            // Obiectul pentru rezervări (serializat)
+│
+├── server/
+│   ├── ReservationServer.java      // Cod pentru server
+│   └── ServerThread.java           // Gestionarea conexiunilor concurente
+│
+└── utils/
+    ├── Constants.java              // Configurări (port, IP)
+    └── Logger.java                 // Pentru logare
